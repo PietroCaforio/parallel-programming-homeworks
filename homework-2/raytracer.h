@@ -12,6 +12,7 @@
 #define SAMPLE_DEPTH 30
 #define NUM_SPHERES 12
 
+
 Color compute_color(Checksum &checksum, Vector3 pixel_color, int samples_per_pixel) {
     auto r = pixel_color.x;
     auto g = pixel_color.y;
