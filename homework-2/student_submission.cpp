@@ -3,7 +3,7 @@
 #include "raytracer.h"
 
 //BLAME:Pietro
-#define NUM_THREADS 4
+#define NUM_THREADS 50
 
 /*
 ** Checks if the given ray hits a sphere surface and returns.
@@ -70,9 +70,9 @@ struct ThreadData {
     std::vector<Sphere>* spheres;
     int* image_data; //shared image data
     Checksum* checksum; //For now we leave it like that
-
-    ThreadData(int thread_id, int height,int width,int samples,int depth,Camera* camera,std::vector<Sphere>* spheres,int* image_data, Checksum* checksum)
-    :thread_id(thread_id),height(height),width(width),samples(samples),depth(depth),camera(camera),spheres(spheres),image_data(image_data),checksum(checksum){
+    pthread_mutex_t* mutex;
+    ThreadData(int thread_id, int height,int width,int samples,int depth,Camera* camera,std::vector<Sphere>* spheres,int* image_data, Checksum* checksum, pthread_mutex_t* mutex)
+    :thread_id(thread_id),height(height),width(width),samples(samples),depth(depth),camera(camera),spheres(spheres),image_data(image_data),checksum(checksum),mutex(mutex){
 
     }
     ThreadData(){
@@ -92,6 +92,7 @@ void* perform_work(void* argument){
     std::vector<Sphere>& spheres = *(data->spheres);
     int* image_data = data->image_data;
     Checksum& checksum = *(data->checksum);
+    
     int interval = height/NUM_THREADS; 
     for(int y = height - 1 - thread_id*interval; y >= height - (thread_id+1)*interval; y--) {
         for(int x = 0; x < width; x++) {
@@ -102,8 +103,9 @@ void* perform_work(void* argument){
                 auto r = get_camera_ray(camera, u, v);
                 pixel_color += trace_ray(r, spheres, depth);
             }
+            pthread_mutex_lock(data->mutex);
             auto output_color = compute_color(checksum, pixel_color, samples);
-
+            pthread_mutex_unlock(data->mutex);
             int pos = ((height - 1 - y) * width + x) * 3;
             image_data[pos] = output_color.r;
             image_data[pos + 1] = output_color.g;
@@ -183,7 +185,7 @@ int main(int argc, char **argv) {
 
     // checksums for each color individually
     Checksum checksum(0, 0, 0);
-
+    pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
     // Iterate over each pixel and trace a ray to calculate the color.
     // This is done for samples amount of time for each pixel.
     // TODO: Try to parallelize this.
@@ -192,7 +194,7 @@ int main(int argc, char **argv) {
     pthread_t threads[NUM_THREADS];
     ThreadData thread_data[NUM_THREADS];
     for(int i = 0; i < NUM_THREADS; i++) {
-        ThreadData single_data(i, height, width, samples, depth, &camera, &spheres, image_data, &checksum);
+        ThreadData single_data(i, height, width, samples, depth, &camera, &spheres, image_data, &checksum,&mutex);
         thread_data[i] =single_data;
         pthread_create(&threads[i], NULL,perform_work, &thread_data[i] );
     }
