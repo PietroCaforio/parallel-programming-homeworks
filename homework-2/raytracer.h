@@ -23,7 +23,9 @@ Color compute_color(Checksum &checksum, Vector3 pixel_color, int samples_per_pix
     r *= scale;
     g *= scale;
     b *= scale;
-
+    //if(r > 0.999 || r < 0.0) printf("ciaoo\n");
+    if(g > 0.999 || g < 0.0) printf("ciaoo\n");
+    //if(b > 0.999 || b < 0.0) printf("ciaoo\n");
     // Write the translated [0,255] value of each color component.
     int pixel_r = static_cast<int>(256 * clamp(r, 0.0, 0.999));
     int pixel_g = static_cast<int>(256 * clamp(g, 0.0, 0.999));

@@ -4,8 +4,44 @@
 #include <atomic>
 
 //BLAME:Pietro
-#define NUM_THREADS 8
-#define NUM_JOBS 50
+#define NUM_THREADS 50
+#define NUM_JOBS 600
+#define NUM_SAMPLES2 30
+
+inline void set_hit_info(float root, const Ray& ray, const Sphere& sphere, Hit& hit) {
+    hit.t = root;
+    hit.point = ray_at(ray, hit.t);
+    Vector3 outward_normal = (hit.point - sphere.center) / sphere.radius;
+    set_face_normal(hit, ray, outward_normal);
+}
+bool sphere_hit2(const Sphere& sphere, const Ray& ray, float t_min, float t_max, Hit& hit) {
+    Vector3 diff = ray.origin_point - sphere.center;
+
+    float a = dot(ray.direction, ray.direction);
+    float b = dot(diff, ray.direction);
+    float c = dot(diff, diff) - sphere.radius * sphere.radius;
+
+    float discriminant = b * b - a * c;
+
+    if (discriminant >= 0) {
+        float sqrt_discriminant = std::sqrt(discriminant);
+        float inv_a = 1.0f / a;
+
+        float root = (-b - sqrt_discriminant) * inv_a;
+        if (root > t_min && root < t_max) {
+            set_hit_info(root, ray, sphere, hit);
+            return true;
+        }
+
+        root = (-b + sqrt_discriminant) * inv_a;
+        if (root > t_min && root < t_max) {
+            set_hit_info(root, ray, sphere, hit);
+            return true;
+        }
+    }
+    return false;
+}
+
 /*
 ** Checks if the given ray hits a sphere surface and returns.
 ** Also returns hit data which contains material information.
@@ -18,7 +54,7 @@ bool check_sphere_hit(const std::vector<Sphere>& spheres, const Ray& ray, float 
 
     for(std::size_t i = 0; i < spheres.size(); i++) {
         const auto& sphere = spheres[i];
-        if(sphere_hit(sphere, ray, t_min, closest_hit_distance, closest_hit)) {
+        if(sphere_hit2(sphere, ray, t_min, closest_hit_distance, closest_hit)) {
             has_hit = true;
             closest_hit_distance = closest_hit.t;
             material = sphere.material;
@@ -125,7 +161,7 @@ void* perform_work(void* argument){
 int main(int argc, char **argv) {
     int width = IMAGE_WIDTH;
     int height = IMAGE_HEIGHT;
-    int samples = NUM_SAMPLES;
+    int samples = NUM_SAMPLES2;
     int depth = SAMPLE_DEPTH;
 
     // This option parsing is not very interesting.
