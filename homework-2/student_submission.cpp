@@ -97,19 +97,6 @@ void* perform_work(void* argument){
     for(int y = height - 1 - thread_id*interval; y >= height - (thread_id+1)*interval; y--) {
         for(int x = 0; x < width; x++) {
             Vector3 pixel_color(0,0,0);
-            for(int s = 0; s < samples; s++) {
-                auto u = (float) (x + random_float()) / (width - 1);
-                auto v = (float) (y + random_float()) / (height - 1);
-                auto r = get_camera_ray(camera, u, v);
-                pixel_color += trace_ray(r, spheres, depth);
-            }
-            pthread_mutex_lock(data->mutex);
-            auto output_color = compute_color(checksum, pixel_color, samples);
-            pthread_mutex_unlock(data->mutex);
-            int pos = ((height - 1 - y) * width + x) * 3;
-            image_data[pos] = output_color.r;
-            image_data[pos + 1] = output_color.g;
-            image_data[pos + 2] = output_color.b;
         }
     }
     pthread_exit(NULL);
@@ -196,7 +183,7 @@ int main(int argc, char **argv) {
     for(int i = 0; i < NUM_THREADS; i++) {
         ThreadData single_data(i, height, width, samples, depth, &camera, &spheres, image_data, &checksum,&mutex);
         thread_data[i] =single_data;
-        pthread_create(&threads[i], NULL,perform_work, &thread_data[i] );
+        pthread_create(&threads[i], NULL, perform_work, &thread_data[i] );
     }
     
 
