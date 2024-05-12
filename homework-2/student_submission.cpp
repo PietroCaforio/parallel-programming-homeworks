@@ -70,9 +70,9 @@ struct ThreadData {
     std::vector<Sphere>* spheres;
     int* image_data; //shared image data
     Checksum* checksum; //For now we leave it like that
-    pthread_mutex_t* mutex;
-    ThreadData(int thread_id, int height,int width,int samples,int depth,Camera* camera,std::vector<Sphere>* spheres,int* image_data, Checksum* checksum, pthread_mutex_t* mutex)
-    :thread_id(thread_id),height(height),width(width),samples(samples),depth(depth),camera(camera),spheres(spheres),image_data(image_data),checksum(checksum),mutex(mutex){
+    //pthread_mutex_t* mutex;
+    ThreadData(int thread_id, int height,int width,int samples,int depth,Camera* camera,std::vector<Sphere>* spheres,int* image_data, Checksum* checksum)
+    :thread_id(thread_id),height(height),width(width),samples(samples),depth(depth),camera(camera),spheres(spheres),image_data(image_data),checksum(checksum){
 
     }
     ThreadData(){
@@ -97,6 +97,17 @@ void* perform_work(void* argument){
     for(int y = height - 1 - thread_id*interval; y >= height - (thread_id+1)*interval; y--) {
         for(int x = 0; x < width; x++) {
             Vector3 pixel_color(0,0,0);
+            for(int s = 0; s < samples; s++) {
+                auto u = (float) (x + random_float()) / (width - 1);
+                auto v = (float) (y + random_float()) / (height - 1);
+                auto r = get_camera_ray(camera, u, v);
+                pixel_color += trace_ray(r, spheres, depth);
+            }
+            auto output_color = compute_color(checksum, pixel_color, samples);
+            int pos = ((height - 1 - y) * width + x) * 3;
+            image_data[pos] = output_color.r;
+            image_data[pos + 1] = output_color.g;
+            image_data[pos + 2] = output_color.b;
         }
     }
     pthread_exit(NULL);
@@ -172,7 +183,7 @@ int main(int argc, char **argv) {
 
     // checksums for each color individually
     Checksum checksum(0, 0, 0);
-    pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+    //pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
     // Iterate over each pixel and trace a ray to calculate the color.
     // This is done for samples amount of time for each pixel.
     // TODO: Try to parallelize this.
@@ -181,7 +192,7 @@ int main(int argc, char **argv) {
     pthread_t threads[NUM_THREADS];
     ThreadData thread_data[NUM_THREADS];
     for(int i = 0; i < NUM_THREADS; i++) {
-        ThreadData single_data(i, height, width, samples, depth, &camera, &spheres, image_data, &checksum,&mutex);
+        ThreadData single_data(i, height, width, samples, depth, &camera, &spheres, image_data, &checksum);
         thread_data[i] =single_data;
         pthread_create(&threads[i], NULL, perform_work, &thread_data[i] );
     }
@@ -189,11 +200,20 @@ int main(int argc, char **argv) {
 
     
 
-    //Fai il join prima di salvare
+    // Fai il join prima di salvare
 
     for (int i = 0; i < NUM_THREADS; i++){
         pthread_join(threads[i],NULL);
     }
+
+    checksum = Checksum(0,0,0); 
+    for(int y = 0; y < height; y++) {
+            for(int x = 0; x < width; x++) {
+                int pos = (y * width + x) * 3;
+                checksum += Checksum(image_data[pos],image_data[pos+1],image_data[pos+2]);
+            }
+        }
+    writeOutput(checksum);
     //Saving the render with PPM format
     if(!no_output) {
         FILE* file;
@@ -219,7 +239,7 @@ int main(int argc, char **argv) {
         }
         fclose(file);
     }
-    writeOutput(checksum);
+    
     free(image_data);
     return 0;
 }
