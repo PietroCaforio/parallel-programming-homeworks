@@ -1,10 +1,11 @@
 #include <unistd.h>
 #include <string.h>
 #include "raytracer.h"
+#include <atomic>
 
 //BLAME:Pietro
-#define NUM_THREADS 50
-
+#define NUM_THREADS 8
+#define NUM_JOBS 50
 /*
 ** Checks if the given ray hits a sphere surface and returns.
 ** Also returns hit data which contains material information.
@@ -81,35 +82,43 @@ struct ThreadData {
     
 };
 
+std::atomic <int> next_job = 0;
+
+
 void* perform_work(void* argument){
-    ThreadData* data = (struct ThreadData*)argument;
-    int thread_id = data->thread_id;
-    int height = data->height;
-    int width = data->width;
-    int samples = data->samples;
-    int depth = data->depth;
-    Camera camera = *(data -> camera);
-    std::vector<Sphere>& spheres = *(data->spheres);
-    int* image_data = data->image_data;
-    Checksum& checksum = *(data->checksum);
-    
-    int interval = height/NUM_THREADS; 
-    for(int y = height - 1 - thread_id*interval; y >= height - (thread_id+1)*interval; y--) {
-        for(int x = 0; x < width; x++) {
-            Vector3 pixel_color(0,0,0);
-            for(int s = 0; s < samples; s++) {
-                auto u = (float) (x + random_float()) / (width - 1);
-                auto v = (float) (y + random_float()) / (height - 1);
-                auto r = get_camera_ray(camera, u, v);
-                pixel_color += trace_ray(r, spheres, depth);
+    while (true) {
+        int thread_id = next_job++;
+        if (thread_id >= NUM_JOBS) {break;}
+        ThreadData* data = (struct ThreadData*)argument;
+        //int thread_id = data->thread_id;
+        int height = data->height;
+        int width = data->width;
+        int samples = data->samples;
+        int depth = data->depth;
+        Camera camera = *(data -> camera);
+        std::vector<Sphere>& spheres = *(data->spheres);
+        int* image_data = data->image_data;
+        Checksum& checksum = *(data->checksum);
+        
+        int interval = height/NUM_JOBS; 
+        for(int y = height - 1 - thread_id*interval; y >= height - (thread_id+1)*interval; y--) {
+            for(int x = 0; x < width; x++) {
+                Vector3 pixel_color(0,0,0);
+                for(int s = 0; s < samples; s++) {
+                    auto u = (float) (x + random_float()) / (width - 1);
+                    auto v = (float) (y + random_float()) / (height - 1);
+                    auto r = get_camera_ray(camera, u, v);
+                    pixel_color += trace_ray(r, spheres, depth);
+                }
+                auto output_color = compute_color(checksum, pixel_color, samples);
+                int pos = ((height - 1 - y) * width + x) * 3;
+                image_data[pos] = output_color.r;
+                image_data[pos + 1] = output_color.g;
+                image_data[pos + 2] = output_color.b;
             }
-            auto output_color = compute_color(checksum, pixel_color, samples);
-            int pos = ((height - 1 - y) * width + x) * 3;
-            image_data[pos] = output_color.r;
-            image_data[pos + 1] = output_color.g;
-            image_data[pos + 2] = output_color.b;
         }
     }
+    
     pthread_exit(NULL);
 }
 
@@ -203,7 +212,7 @@ int main(int argc, char **argv) {
     // Fai il join prima di salvare
 
     for (int i = 0; i < NUM_THREADS; i++){
-        pthread_join(threads[i],NULL);
+        pthread_join(threads[i], NULL);
     }
 
     checksum = Checksum(0,0,0); 
