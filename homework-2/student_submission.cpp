@@ -6,7 +6,7 @@
 //BLAME:Pietro
 #define NUM_THREADS 50
 #define NUM_JOBS 600
-#define NUM_SAMPLES2 30
+#define NUM_SAMPLES2 5
 
 inline void set_hit_info(float root, const Ray& ray, const Sphere& sphere, Hit& hit) {
     hit.t = root;
