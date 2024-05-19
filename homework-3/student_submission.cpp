@@ -12,7 +12,7 @@
 
 #define MEASURE_TIME true
 #define NUM_WORKERS 32
-#define NUM_GENERATORS 1
+#define NUM_GENERATORS 10
 
 struct Problem {
     Sha1Hash sha1_hash;
@@ -72,7 +72,6 @@ ProblemQueue problemQueue;
 // This method is intentionally compute intense so you can already start working on solving
 // problems while more problems are generated
 void generateProblem(std::string problemRand[], int numProblems, int leadingZerosProblem, int idx){
-    // std::cout << numProblems << "\n";
     Sha1Hash mock;
 
     int step = numProblems / NUM_GENERATORS;
@@ -89,7 +88,6 @@ void generateProblem(std::string problemRand[], int numProblems, int leadingZero
     }
 
     finished_generator++;
-    // std::cout << "GENERATOR FINISHED\n"; 
     if (finished_generator >= NUM_GENERATORS) {
         for (int i = 0; i < NUM_WORKERS; i++) {
             problemQueue.push(Problem{mock, -10});
