@@ -71,7 +71,7 @@ Sha1Hash findSolutionHash(Sha1Hash hash, int leadingZerosSolution){
 int main(int argc, char *argv[]) {
     int leadingZerosProblem = 8;
     int leadingZerosSolution = 11;
-    int numProblems = 10000;
+    int numProblems = 1000;
 
     //Not interesting for parallelization
     Utility::parse_input(numProblems, leadingZerosProblem, leadingZerosSolution, argc, argv);
