@@ -25,10 +25,18 @@ struct Problem {
 class ProblemQueue {
     public:
         void push(Problem problem){
-            problem_queue.push_back(problem);
+            {
+                std::lock_guard<std::mutex> lock(mutex);
+                problem_queue.push_back(problem);
+            }
+            cv.notify_one();
         }
 
         Problem pop(){
+            std :: unique_lock < std :: mutex > lock ( mutex );
+            while (problem_queue.empty()){
+                cv.wait( lock );
+            }
             Problem p = problem_queue.front();
             problem_queue.pop_front();
             return p;
@@ -40,6 +48,8 @@ class ProblemQueue {
 
     private:
         std::deque<Problem> problem_queue;
+        std::mutex mutex;
+        std::condition_variable cv;
 
 };
 
@@ -92,6 +102,7 @@ int main(int argc, char *argv[]) {
     /*
     * TODO@Students: Generate the problem in another thread and start already working on solving the problems while the generation continues
     */
+    
     generateProblem(seed, numProblems, leadingZerosProblem);
 
     #if MEASURE_TIME
