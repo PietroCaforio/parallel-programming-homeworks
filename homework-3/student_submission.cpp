@@ -12,17 +12,23 @@
 
 #define MEASURE_TIME true
 #define NUM_WORKERS 32
+#define NUM_GENERATORS 1
 
 struct Problem {
     Sha1Hash sha1_hash;
     int problemNum;
 };
+
+std::atomic<int> finished_generator = 0;
+std::atomic<int> work_done = 0;
+
 int leadingZerosProblem = 8;
 int leadingZerosSolution = 11;
 int numProblems = 10000;
 Sha1Hash *solutionHashes;
+std::string * problemRandG;
 
-bool generating = true;
+
 /*
  * TODO@Students: Implement a thread safe queue.
  * Tip: use a condition variable to make threads wait when the queue is empty and there is nothing to pop().
@@ -65,20 +71,30 @@ ProblemQueue problemQueue;
 // generate numProblems sha1 hashes with leadingZerosProblem leading zero bits
 // This method is intentionally compute intense so you can already start working on solving
 // problems while more problems are generated
-void generateProblem(int seed, int numProblems, int leadingZerosProblem){
-    generating = true;
-    srand(seed+1);
+void generateProblem(std::string problemRand[], int numProblems, int leadingZerosProblem, int idx){
+    // std::cout << numProblems << "\n";
+    Sha1Hash mock;
 
-    for(int i = 0; i < numProblems; i++){
-        std::string base = std::to_string(rand()) + std::to_string(rand());
-        Sha1Hash hash = Utility::sha1(base);
+    int step = numProblems / NUM_GENERATORS;
+    if (! (numProblems % NUM_GENERATORS == 0)) {std::cout << "ass error";exit(1);}
+
+    for(int i = idx*step; i < (idx+1)*step; i++){
+        
+        Sha1Hash hash = Utility::sha1(problemRand[i]);
         do{
             // we keep hashing ourself until we find the desired amount of leading zeros
             hash = Utility::sha1(hash);
         }while(Utility::count_leading_zero_bits(hash) < leadingZerosProblem);
         problemQueue.push(Problem{hash, i});
     }
-    generating = false;
+
+    finished_generator++;
+    // std::cout << "GENERATOR FINISHED\n"; 
+    if (finished_generator >= NUM_GENERATORS) {
+        for (int i = 0; i < NUM_WORKERS; i++) {
+            problemQueue.push(Problem{mock, -10});
+        }
+    }
 }
 
 // This method repeatedly hashes itself until the required amount of leading zero bits is found
@@ -90,10 +106,16 @@ Sha1Hash findSolutionHash(Sha1Hash hash, int leadingZerosSolution){
 
     return hash;
 }
+
 void worker() {
-    while(!problemQueue.empty() && generating) {
+    while(true) {
         Problem p = problemQueue.pop();
+        // std::cout << p.problemNum << "\n";
+        if (p.problemNum < 0) {
+            break;
+        }
         solutionHashes[p.problemNum] = findSolutionHash(p.sha1_hash, leadingZerosSolution);
+        work_done++;
     }
 }
     
@@ -105,6 +127,7 @@ int main(int argc, char *argv[]) {
     Utility::parse_input(numProblems, leadingZerosProblem, leadingZerosSolution, argc, argv);
     Sha1Hash solutionHashes2[numProblems];
     solutionHashes = new Sha1Hash[numProblems];
+    problemRandG = new std::string[numProblems];
     
     unsigned int seed = Utility::readInput();
 
@@ -116,7 +139,15 @@ int main(int argc, char *argv[]) {
     /*
     * TODO@Students: Generate the problem in another thread and start already working on solving the problems while the generation continues
     */
-    std::thread problemGenerator(generateProblem,seed, numProblems, leadingZerosProblem);
+    srand(seed+1);
+    for (int i = 0; i < numProblems; i++) {
+        problemRandG[i] = std::to_string(rand()) + std::to_string(rand());
+    }
+
+    std::thread generators [NUM_GENERATORS];
+    for (int i = 0; i < NUM_GENERATORS; i++) {
+        generators[i] = std::thread(generateProblem, problemRandG, numProblems, leadingZerosProblem, i);
+    }
 
     #if MEASURE_TIME
     clock_gettime(CLOCK_MONOTONIC, &generation_end);
@@ -135,8 +166,11 @@ int main(int argc, char *argv[]) {
     for (int i=0; i < NUM_WORKERS; i++) {
         workers[i] = std::thread(worker);
     }
+
+    for (int i = 0; i < NUM_GENERATORS; i++) {
+        generators[i].join();
+    }
     
-    problemGenerator.join();
     for (int i = 0; i < NUM_WORKERS; i++) {
         workers[i].join();
     }
