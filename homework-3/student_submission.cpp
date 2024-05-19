@@ -130,18 +130,17 @@ int main(int argc, char *argv[]) {
     /*
     * TODO@Students: Create worker threads that parallelize this functionality. Add the synchronization directly to the queue
     */
+    //worker();
     std::thread workers[NUM_WORKERS];
     for (int i=0; i < NUM_WORKERS; i++) {
-        std::thread t(worker);
         workers[i] = std::thread(worker);
     }
-
+    
     problemGenerator.join();
     for (int i = 0; i < NUM_WORKERS; i++) {
         workers[i].join();
     }
-
-
+    
     #if MEASURE_TIME
     clock_gettime(CLOCK_MONOTONIC, &solve_end);
     double solve_time = (((double) solve_end.tv_sec + 1.0e-9 * solve_end.tv_nsec) - ((double) solve_start.tv_sec + 1.0e-9 * solve_start.tv_nsec));
