@@ -29,6 +29,7 @@ Sha1Hash *solutionHashes;
 std::string * problemRandG;
 
 
+bool generating = true;
 /*
  * TODO@Students: Implement a thread safe queue.
  * Tip: use a condition variable to make threads wait when the queue is empty and there is nothing to pop().
@@ -71,30 +72,21 @@ ProblemQueue problemQueue;
 // generate numProblems sha1 hashes with leadingZerosProblem leading zero bits
 // This method is intentionally compute intense so you can already start working on solving
 // problems while more problems are generated
-void generateProblem(std::string problemRand[], int numProblems, int leadingZerosProblem, int idx){
-    // std::cout << numProblems << "\n";
-    Sha1Hash mock;
+void generateProblem(int seed, int numProblems, int leadingZerosProblem){
+    generating = true;
+    srand(seed+1);
 
-    int step = numProblems / NUM_GENERATORS;
-    if (! (numProblems % NUM_GENERATORS == 0)) {std::cout << "ass error";exit(1);}
-
-    for(int i = idx*step; i < (idx+1)*step; i++){
-        
-        Sha1Hash hash = Utility::sha1(problemRand[i]);
+    for(int i = 0; i < numProblems; i++){
+        std::string base = std::to_string(rand()) + std::to_string(rand());
+        Sha1Hash hash = Utility::sha1(base);
         do{
             // we keep hashing ourself until we find the desired amount of leading zeros
             hash = Utility::sha1(hash);
         }while(Utility::count_leading_zero_bits(hash) < leadingZerosProblem);
+        //std::cout << i << std::endl;
         problemQueue.push(Problem{hash, i});
     }
-
-    finished_generator++;
-    // std::cout << "GENERATOR FINISHED\n"; 
-    if (finished_generator >= NUM_GENERATORS) {
-        for (int i = 0; i < NUM_WORKERS; i++) {
-            problemQueue.push(Problem{mock, -10});
-        }
-    }
+    generating = false;
 }
 
 // This method repeatedly hashes itself until the required amount of leading zero bits is found
@@ -108,7 +100,7 @@ Sha1Hash findSolutionHash(Sha1Hash hash, int leadingZerosSolution){
 }
 
 void worker() {
-    while(true) {
+    while(!problemQueue.empty() && generating) {
         Problem p = problemQueue.pop();
         // std::cout << p.problemNum << "\n";
         if (p.problemNum < 0) {
@@ -139,15 +131,7 @@ int main(int argc, char *argv[]) {
     /*
     * TODO@Students: Generate the problem in another thread and start already working on solving the problems while the generation continues
     */
-    srand(seed+1);
-    for (int i = 0; i < numProblems; i++) {
-        problemRandG[i] = std::to_string(rand()) + std::to_string(rand());
-    }
-
-    std::thread generators [NUM_GENERATORS];
-    for (int i = 0; i < NUM_GENERATORS; i++) {
-        generators[i] = std::thread(generateProblem, problemRandG, numProblems, leadingZerosProblem, i);
-    }
+    std::thread problemGenerator(generateProblem,seed, numProblems, leadingZerosProblem);
 
     #if MEASURE_TIME
     clock_gettime(CLOCK_MONOTONIC, &generation_end);
@@ -166,21 +150,22 @@ int main(int argc, char *argv[]) {
     for (int i=0; i < NUM_WORKERS; i++) {
         workers[i] = std::thread(worker);
     }
-
-    for (int i = 0; i < NUM_GENERATORS; i++) {
-        generators[i].join();
-    }
     
+    problemGenerator.join();
     for (int i = 0; i < NUM_WORKERS; i++) {
         workers[i].join();
     }
     
+    for (int i = 0; i < NUM_GENERATORS; i++) {
+        problemGenerators[i].join();
+    }
     #if MEASURE_TIME
     clock_gettime(CLOCK_MONOTONIC, &solve_end);
     double solve_time = (((double) solve_end.tv_sec + 1.0e-9 * solve_end.tv_nsec) - ((double) solve_start.tv_sec + 1.0e-9 * solve_start.tv_nsec));
     fprintf(stderr, "Solve Problem time:     %.7gs\n", solve_time);
     #endif
-
+     
+    
     /*
     * TODO@Students: Make sure all work has finished before calculating the solution
     * Tip: Push a special problem for each thread onto the queue that tells a thread to break and stop working
