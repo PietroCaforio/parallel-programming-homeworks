@@ -8,15 +8,21 @@
 #include <functional>
 
 #include "Utility.h"
+#include <iostream>
 
 #define MEASURE_TIME true
+#define NUM_WORKERS 32
 
 struct Problem {
     Sha1Hash sha1_hash;
     int problemNum;
 };
+int leadingZerosProblem = 8;
+int leadingZerosSolution = 11;
+int numProblems = 10000;
+Sha1Hash *solutionHashes;
 
-
+bool generating = true;
 /*
  * TODO@Students: Implement a thread safe queue.
  * Tip: use a condition variable to make threads wait when the queue is empty and there is nothing to pop().
@@ -33,7 +39,7 @@ class ProblemQueue {
         }
 
         Problem pop(){
-            std :: unique_lock < std :: mutex > lock ( mutex );
+            std :: unique_lock<std::mutex> lock ( mutex );
             while (problem_queue.empty()){
                 cv.wait( lock );
             }
@@ -60,6 +66,7 @@ ProblemQueue problemQueue;
 // This method is intentionally compute intense so you can already start working on solving
 // problems while more problems are generated
 void generateProblem(int seed, int numProblems, int leadingZerosProblem){
+    generating = true;
     srand(seed+1);
 
     for(int i = 0; i < numProblems; i++){
@@ -71,6 +78,7 @@ void generateProblem(int seed, int numProblems, int leadingZerosProblem){
         }while(Utility::count_leading_zero_bits(hash) < leadingZerosProblem);
         problemQueue.push(Problem{hash, i});
     }
+    generating = false;
 }
 
 // This method repeatedly hashes itself until the required amount of leading zero bits is found
@@ -82,16 +90,22 @@ Sha1Hash findSolutionHash(Sha1Hash hash, int leadingZerosSolution){
 
     return hash;
 }
+void worker() {
+    while(!problemQueue.empty() && generating) {
+        Problem p = problemQueue.pop();
+        solutionHashes[p.problemNum] = findSolutionHash(p.sha1_hash, leadingZerosSolution);
+    }
+}
+    
 
 int main(int argc, char *argv[]) {
-    int leadingZerosProblem = 8;
-    int leadingZerosSolution = 11;
-    int numProblems = 10000;
+    
 
     //Not interesting for parallelization
     Utility::parse_input(numProblems, leadingZerosProblem, leadingZerosSolution, argc, argv);
-    Sha1Hash solutionHashes[numProblems];
-
+    Sha1Hash solutionHashes2[numProblems];
+    solutionHashes = new Sha1Hash[numProblems];
+    
     unsigned int seed = Utility::readInput();
 
     #if MEASURE_TIME
@@ -102,8 +116,7 @@ int main(int argc, char *argv[]) {
     /*
     * TODO@Students: Generate the problem in another thread and start already working on solving the problems while the generation continues
     */
-    
-    generateProblem(seed, numProblems, leadingZerosProblem);
+    std::thread problemGenerator(generateProblem,seed, numProblems, leadingZerosProblem);
 
     #if MEASURE_TIME
     clock_gettime(CLOCK_MONOTONIC, &generation_end);
@@ -117,10 +130,17 @@ int main(int argc, char *argv[]) {
     /*
     * TODO@Students: Create worker threads that parallelize this functionality. Add the synchronization directly to the queue
     */
-    while(!problemQueue.empty()) {
-        Problem p = problemQueue.pop();
-        solutionHashes[p.problemNum] = findSolutionHash(p.sha1_hash, leadingZerosSolution);
+    std::thread workers[NUM_WORKERS];
+    for (int i=0; i < NUM_WORKERS; i++) {
+        std::thread t(worker);
+        workers[i] = std::thread(worker);
     }
+
+    problemGenerator.join();
+    for (int i = 0; i < NUM_WORKERS; i++) {
+        workers[i].join();
+    }
+
 
     #if MEASURE_TIME
     clock_gettime(CLOCK_MONOTONIC, &solve_end);
