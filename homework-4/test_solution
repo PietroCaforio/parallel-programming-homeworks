@@ -1,0 +1,17 @@
+#!/bin/bash
+AB=$(date +%s%3N)
+ACTUAL=$(echo 0 | ./student_submission)
+AA=$(date +%s%3N)
+DIFF1=$((AA - AB))
+
+
+AB=$(date +%s%3N)
+EXPECTED=$(echo 0 | ./sequential_implementation)
+AA=$(date +%s%3N)
+DIFF2=$((AA - AB))
+
+SP=$((DIFF1/DIFF2))
+echo "Speedup of: $SP"
+
+
+if [ "$ACTUAL" = "$EXPECTED" ]; then echo "PASSED"; else echo  "FAILED"; fi
