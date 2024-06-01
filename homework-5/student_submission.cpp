@@ -46,13 +46,13 @@ void simulate_waves(ProblemData &problemData) {
             bool condition = islandMap[x][y] < LAND_THRESHOLD;
             currentWaveIntensity[x][y] =
                         std::clamp(lastWaveIntensity[x][y] + (last_velocity + acceleration) * energyPreserved, 0.0f, 1.0f) * condition;
-            /*
-            if (islandMap[x][y] >= LAND_THRESHOLD) {
-                currentWaveIntensity[x][y] = 0.0f;
-            } else {
-                currentWaveIntensity[x][y] =
-                        std::clamp(lastWaveIntensity[x][y] + (last_velocity + acceleration) * energyPreserved, 0.0f, 1.0f);
-            }*/
+            
+            // if (islandMap[x][y] >= LAND_THRESHOLD) {
+            //     currentWaveIntensity[x][y] = 0.0f;
+            // } else {
+            //     currentWaveIntensity[x][y] =
+            //             std::clamp(lastWaveIntensity[x][y] + (last_velocity + acceleration) * energyPreserved, 0.0f, 1.0f);
+            // }
         }
     }
 }
@@ -77,14 +77,21 @@ bool findPathWithExhaustiveSearch(ProblemData &problemData, int timestep,
     previousShipPositions[start.x][start.y] = true;
 
     // Ensure that our new buffer is set to zero. We need to ensure this because we are reusing previously used buffers.
+    #pragma omp parallel for
     for (int x = 0; x < MAP_SIZE; ++x) {
+        #pragma omp parallel for
+
         for (int y = 0; y < MAP_SIZE; ++y) {
             currentShipPositions[x][y] = false;
         }
     }
 
+    bool guard = false;
+
     // Do the actual path finding.
+    #pragma omp parallel for
     for (int x = 0; x < MAP_SIZE; ++x) {
+        #pragma omp parallel for
         for (int y = 0; y < MAP_SIZE; ++y) {
             // If there is no possibility to reach this position then we don't need to process it.
             if (!previousShipPositions[x][y]) {
@@ -155,7 +162,8 @@ bool findPathWithExhaustiveSearch(ProblemData &problemData, int timestep,
                             std::cerr << "Path traceback out of range: " << e.what() << std::endl;
                         }
                     }
-                    return true;
+                    //return true;
+                    guard = true;
                 }
 
                 currentShipPositions[neighborPosition.x][neighborPosition.y] = true;
@@ -167,7 +175,7 @@ bool findPathWithExhaustiveSearch(ProblemData &problemData, int timestep,
     // are using.
     problemData.numPredecessors += problemData.nodePredecessors[timestep].size();
 
-    return false;
+    return guard;
 }
 
 
