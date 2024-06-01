@@ -15,7 +15,9 @@ void simulate_waves(ProblemData &problemData) {
     float (&lastWaveIntensity)[MAP_SIZE][MAP_SIZE] = *problemData.lastWaveIntensity;
     float (&currentWaveIntensity)[MAP_SIZE][MAP_SIZE] = *problemData.currentWaveIntensity;
 
+    #pragma omp parallel for
     for (int x = 1; x < MAP_SIZE - 1; ++x) {
+        #pragma omp parallel for
         for (int y = 1; y < MAP_SIZE - 1; ++y) {
 
             // Simulate some waves
