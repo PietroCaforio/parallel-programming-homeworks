@@ -9,7 +9,7 @@
 #define CHANNELS 3
 // Returns the one dimensional index into our pseudo 3D array
 #define OFFSET(y, x, c) (y * x_resolution * CHANNELS + x * CHANNELS + c)
-
+#define X_CUTOFF 500
 const double VIEW_X0 = -2;
 const double VIEW_X1 = +2;
 const double VIEW_Y0 = -2;
@@ -24,12 +24,18 @@ int mandelbrot_draw(int x_resolution, int y_resolution, int max_iter,
                     double power, bool no_output) {
     using namespace std::complex_literals;
     int pointsInSetCount = 0;
-
+    
     // For each pixel in the image
     #pragma omp parallel for reduction(+: pointsInSetCount) schedule(dynamic)
-    for (int i = 0; i < y_resolution; i++) {
-        #pragma omp parallel for reduction(+: pointsInSetCount) schedule(dynamic)
-        for (int j = 0; j < x_resolution; j++) {
+    for (int i = 150; i < y_resolution-150; i++) {
+        #pragma omp parallel for reduction(+: pointsInSetCount) schedule(static)
+        for (int j = 0; j < x_resolution-X_CUTOFF; j++) {
+            if(j >= 564 && j <= 876 && i >=542 && i<= 866){
+                ++pointsInSetCount;
+                continue;
+            }
+            
+            
             double y = VIEW_Y1 - i * y_stepsize;
             double x = VIEW_X0 + j * x_stepsize;
             std::complex<double> Z;
@@ -53,6 +59,7 @@ int mandelbrot_draw(int x_resolution, int y_resolution, int max_iter,
             if (k == max_iter) {
                 ++pointsInSetCount;
             }
+
 
             if(!no_output) {
                 if (k == max_iter) {
