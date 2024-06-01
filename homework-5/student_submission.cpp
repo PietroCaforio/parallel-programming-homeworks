@@ -15,7 +15,9 @@ void simulate_waves(ProblemData &problemData) {
     float (&lastWaveIntensity)[MAP_SIZE][MAP_SIZE] = *problemData.lastWaveIntensity;
     float (&currentWaveIntensity)[MAP_SIZE][MAP_SIZE] = *problemData.currentWaveIntensity;
 
+    #pragma omp parallel for
     for (int x = 1; x < MAP_SIZE - 1; ++x) {
+        #pragma omp parallel for
         for (int y = 1; y < MAP_SIZE - 1; ++y) {
 
             // Simulate some waves
@@ -40,12 +42,17 @@ void simulate_waves(ProblemData &problemData) {
                     ENERGY_PRESERVATION_FACTOR * (LAND_THRESHOLD - 0.15f * islandMap[x][y]), 0.0f, 1.0f);
 
             // There aren't any waves on land.
+
+            bool condition = islandMap[x][y] < LAND_THRESHOLD;
+            currentWaveIntensity[x][y] =
+                        std::clamp(lastWaveIntensity[x][y] + (last_velocity + acceleration) * energyPreserved, 0.0f, 1.0f) * condition;
+            /*
             if (islandMap[x][y] >= LAND_THRESHOLD) {
                 currentWaveIntensity[x][y] = 0.0f;
             } else {
                 currentWaveIntensity[x][y] =
                         std::clamp(lastWaveIntensity[x][y] + (last_velocity + acceleration) * energyPreserved, 0.0f, 1.0f);
-            }
+            }*/
         }
     }
 }
