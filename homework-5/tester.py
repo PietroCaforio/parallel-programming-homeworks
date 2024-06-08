@@ -1,14 +1,46 @@
+import time
 import subprocess
 
-# Replace 'script.sh' with the path to your shell script
-script_path = './test_solution.sh'
 
-# Run the shell script
-process = subprocess.Popen(['bash', script_path], stdout=subprocess.PIPE, text=True)
+def run_command(command):
+    try:
+        # Use shell=True to run the command in the shell
+        process = subprocess.Popen(
+            command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, shell=True)
 
-stdout_output, _ = process.communicate()
+        # Wait for the process to complete and capture the output and error
+        stdout, stderr = process.communicate()
 
-# Print or process the stdout output as needed
-print(stdout_output.split("\n"))
-stdout_output = stdout_output.split("\n")
-print(f"SPEEDUP:  {int(stdout_output[-2])/int(stdout_output[-3])}")
+        # Check if the process terminated with a non-zero exit code
+        if process.returncode != 0:
+            print(f"Command failed with return code {process.returncode}")
+            return (stderr)
+        else:
+            # Print the captured output
+            return (stdout)
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+
+seed = 12345
+
+
+seq_cmd = f"echo {seed} | ./sequential_implementation"
+par_cmd = f"echo {seed} | ./student_submission"
+
+start = time.time()
+seq_res = run_command(seq_cmd)
+mid = time.time()
+par_res = run_command(par_cmd)
+end = time.time()
+
+if (seq_res != par_res):
+    print(f"FAILED")
+    print(seq_res)
+    print(par_res)
+else:
+    print(f"PASSED")
+
+print(start, mid, end)
+print(f"SPEEDUP is (not reliable on my machine) {(mid-start)/(end-mid)}")

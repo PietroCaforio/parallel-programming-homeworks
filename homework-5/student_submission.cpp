@@ -88,15 +88,16 @@ bool findPathWithExhaustiveSearch(ProblemData &problemData, int timestep,
 
     bool guard = false;
 
-// Do the actual path finding.
-#pragma omp parallel
+    // Do the actual path finding.
     {
-#pragma omp single
         {
+#pragma omp parallel for
+
             for (int x = 0; x < MAP_SIZE; ++x)
             {
-#pragma omp task
                 {
+#pragma omp parallel for
+
                     for (int y = 0; y < MAP_SIZE; ++y)
                     {
                         // If there is no possibility to reach this position then we don't need to process it.
@@ -264,14 +265,9 @@ int main(int argc, char *argv[])
             problemData->flipWaveBuffers();
         }
         // Submit our solution back to the system.
-        Utility::writeOutput(pathLength);
-        if (outputVisualization)
+
         {
-            // Output the last frame some more times so that it's easier to see the path/result
-            for (int i = 0; i < VIS_TIMES; ++i)
-            {
-                VideoOutput::writeVideoFrames(path, *problemData);
-            }
+            Utility::writeOutput(pathLength);
         }
 
         delete problemData;
@@ -279,9 +275,5 @@ int main(int argc, char *argv[])
     // This stops the timer by printing DONE.
     Utility::stopTimer();
 
-    if (outputVisualization)
-    {
-        VideoOutput::endVideoOutput();
-    }
     return 0;
 }
