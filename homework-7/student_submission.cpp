@@ -103,6 +103,13 @@ void copy_edges(bool (&grid)[GRID_SIZE][GRID_SIZE], int rank, int size)
     int workload_rows = GRID_SIZE / size;
     int workload_rest = GRID_SIZE % size;
 
+    int prev_proc = (rank - 1 + size) % size;
+    int next_proc = (rank + 1) % size;
+
+    // printf("PROC: %d  previous %d and next %d\n", rank, prev_proc, next_proc);
+
+    // printf("Params: %d %d\n", workload_rows, workload_rest);
+
     if (rank != size - 1)
     {
         // Copy data to the boundaries
@@ -114,22 +121,25 @@ void copy_edges(bool (&grid)[GRID_SIZE][GRID_SIZE], int rank, int size)
         }
 
         // send top row to previous process
-        MPI_Send(grid + (rank * workload_rows), GRID_SIZE, MPI_CXX_BOOL, (rank - 1 + size) % size, 0, MPI_COMM_WORLD);
+        MPI_Send(grid + (rank * workload_rows), GRID_SIZE, MPI_CXX_BOOL, prev_proc, 0, MPI_COMM_WORLD);
+        // printf("PROC %d, sending to %d\n", rank, prev_proc);
 
-        // recv on top row from previous process
-        MPI_Recv(grid + 1 + (rank * workload_rows), GRID_SIZE, MPI_CXX_BOOL, (rank - 1 + size) % size, 0,
+        // recv on bottom row from next
+        // printf("PROC %d, recving to %d\n", rank, next_proc);
+        MPI_Recv(grid - 1 + ((rank + 1) * workload_rows), GRID_SIZE, MPI_CXX_BOOL, next_proc, 0,
                  MPI_COMM_WORLD, nullptr);
 
         // send bottom row to next process
-        MPI_Send(grid + ((rank + 1) * workload_rows), GRID_SIZE, MPI_CXX_BOOL, (rank + 1) % size, 1, MPI_COMM_WORLD);
+        MPI_Send(grid + ((rank + 1) * workload_rows), GRID_SIZE, MPI_CXX_BOOL, next_proc, 0, MPI_COMM_WORLD);
+        // printf("PROC %d, sending to %d\n", rank, next_proc);
 
-        // recv on bottom row from next
-        MPI_Recv(grid - 1 + ((rank + 1) * workload_rows), GRID_SIZE, MPI_CXX_BOOL, (rank + 1) % size, 1,
+        // printf("PROC %d, recving to %d\n", rank, prev_proc);
+        // recv on top row from previous process
+        MPI_Recv(grid + 1 + (rank * workload_rows), GRID_SIZE, MPI_CXX_BOOL, prev_proc, 0,
                  MPI_COMM_WORLD, nullptr);
     }
     else
     {
-        printf("Last process of the line, should be 1\n");
 
         // Copy data to the boundaries
         for (int i = 1 + (rank * workload_rows); i < ((rank + 1) * workload_rows + workload_rest) - 1; i++)
@@ -138,18 +148,23 @@ void copy_edges(bool (&grid)[GRID_SIZE][GRID_SIZE], int rank, int size)
             grid[i][0] = grid[i][GRID_SIZE - 2];
             grid[i][GRID_SIZE - 1] = grid[i][1];
         }
-        // recv on top row from previous process
-        MPI_Recv(grid + 1 + (rank * workload_rows), GRID_SIZE, MPI_CXX_BOOL, (rank - 1 + size) % size, 0,
-                 MPI_COMM_WORLD, nullptr);
+
+        // printf("PROC %d, recving to %d\n", rank, next_proc);
+        // recv bottom padding row from next
+        MPI_Recv(grid - 1 + ((rank + 1) * workload_rows) + workload_rest, GRID_SIZE, MPI_CXX_BOOL, next_proc, 0, MPI_COMM_WORLD, nullptr);
 
         // send top row to previous process
-        MPI_Send(grid + (rank * workload_rows), GRID_SIZE, MPI_CXX_BOOL, (rank - 1 + size) % size, 0, MPI_COMM_WORLD);
+        MPI_Send(grid + (rank * workload_rows), GRID_SIZE, MPI_CXX_BOOL, prev_proc, 0, MPI_COMM_WORLD);
+        // printf("PROC %d, sending to %d\n", rank, prev_proc);
 
-        // recv bottom padding row from next
-        MPI_Recv(grid - 1 + ((rank + 1) * workload_rows) + workload_rest, GRID_SIZE, MPI_CXX_BOOL, (rank + 1) % size, 1, MPI_COMM_WORLD, nullptr);
+        // printf("PROC %d, recving to %d\n", rank, prev_proc);
+        // recv on top row from previous process
+        MPI_Recv(grid + 1 + (rank * workload_rows), GRID_SIZE, MPI_CXX_BOOL, prev_proc, 0,
+                 MPI_COMM_WORLD, nullptr);
 
         // send bottom row to next process
-        MPI_Send(grid + ((rank + 1) * workload_rows) + workload_rest, GRID_SIZE, MPI_CXX_BOOL, (rank + 1) % size, 1, MPI_COMM_WORLD);
+        MPI_Send(grid + ((rank + 1) * workload_rows) + workload_rest, GRID_SIZE, MPI_CXX_BOOL, next_proc, 0, MPI_COMM_WORLD);
+        // printf("PROC %d, sending to %d\n", rank, next_proc);
     }
 
     // Fix corners // MESSAGE PASSING
@@ -161,22 +176,23 @@ void copy_edges(bool (&grid)[GRID_SIZE][GRID_SIZE], int rank, int size)
     if (rank == 0)
     {
 
-        MPI_Recv(&grid[0][0], GRID_SIZE, MPI_CXX_BOOL, (rank - 1 + size) % size, 0,
-                 MPI_COMM_WORLD, nullptr);
-        MPI_Recv(&grid[0][GRID_SIZE - 1], GRID_SIZE, MPI_CXX_BOOL, (rank - 1 + size) % size, 1,
+        MPI_Recv(&grid[0][0], GRID_SIZE, MPI_CXX_BOOL, size - 1, 0,
                  MPI_COMM_WORLD, nullptr);
 
-        MPI_Send(&grid[1][1], 1, MPI_CXX_BOOL, (rank - 1 + size) % size, 0, MPI_COMM_WORLD);
-        MPI_Send(&grid[1][GRID_SIZE - 2], 1, MPI_CXX_BOOL, (rank - 1 + size) % size, 0, MPI_COMM_WORLD);
+        MPI_Send(&grid[1][1], 1, MPI_CXX_BOOL, size - 1, 0, MPI_COMM_WORLD);
+        MPI_Recv(&grid[0][GRID_SIZE - 1], GRID_SIZE, MPI_CXX_BOOL, size - 1, 0,
+                 MPI_COMM_WORLD, nullptr);
+        MPI_Send(&grid[1][GRID_SIZE - 2], 1, MPI_CXX_BOOL, size - 1, 0, MPI_COMM_WORLD);
     }
-    else if (rank == size - 1)
+    if (rank == size - 1)
     {
-        MPI_Recv(&grid[GRID_SIZE - 1][GRID_SIZE - 1], GRID_SIZE, MPI_CXX_BOOL, (rank - 1 + size) % size, 0,
+        MPI_Send(&grid[GRID_SIZE - 2][GRID_SIZE - 2], 1, MPI_CXX_BOOL, 0, 0, MPI_COMM_WORLD);
+
+        MPI_Recv(&grid[GRID_SIZE - 1][GRID_SIZE - 1], GRID_SIZE, MPI_CXX_BOOL, 0, 0,
                  MPI_COMM_WORLD, nullptr);
-        MPI_Recv(&grid[GRID_SIZE - 1][0], GRID_SIZE, MPI_CXX_BOOL, (rank - 1 + size) % size, 1,
+        MPI_Send(&grid[GRID_SIZE - 2][1], 1, MPI_CXX_BOOL, 0, 0, MPI_COMM_WORLD);
+        MPI_Recv(&grid[GRID_SIZE - 1][0], GRID_SIZE, MPI_CXX_BOOL, 0, 0,
                  MPI_COMM_WORLD, nullptr);
-        MPI_Send(&grid[GRID_SIZE - 2][GRID_SIZE - 2], 1, MPI_CXX_BOOL, (rank - 1 + size) % size, 0, MPI_COMM_WORLD);
-        MPI_Send(&grid[GRID_SIZE - 2][1], 1, MPI_CXX_BOOL, (rank - 1 + size) % size, 0, MPI_COMM_WORLD);
     }
 
     // // columns padding must be copied anyhow (MESSAGE PASSING)
@@ -186,6 +202,8 @@ void copy_edges(bool (&grid)[GRID_SIZE][GRID_SIZE], int rank, int size)
     //     grid[0][j] = grid[GRID_SIZE - 2][j];
     //     grid[GRID_SIZE - 1][j] = grid[1][j];
     // }
+
+    // printf("PROC %d Finished copyedeges\n", rank);
 }
 
 int readProblemFromInput(ProblemData &data)
@@ -216,6 +234,7 @@ int readProblemFromInput(ProblemData &data)
 void generateProblem(ProblemData &data, int seed)
 {
     auto &grid = *data.readGrid;
+    // printf("Process %d seed\n", seed);
 
     my_seedGenerator(seed);
 
@@ -266,15 +285,14 @@ int main(int argc, char **argv)
     auto *problemData = new ProblemData;
 
     int seed;
-    // printf("Process %d speaking\n", rank);
     if (rank == 0)
     {
         seed = readProblemFromInput(*problemData);
     }
 
     MPI_Bcast(&seed, 1, MPI_INT, 0, MPI_COMM_WORLD);
-    printf("Process %d seed\n", seed);
-    if (rank == 0)
+    // printf("Process %d seed\n", seed);
+    if (rank != 0)
     {
         generateProblem(*problemData, seed);
     }
@@ -290,7 +308,9 @@ int main(int argc, char **argv)
             {
                 int res = 0;
                 int local = my_countAlive(*problemData, rank, size);
-                MPI_Reduce(&local, &res, GRID_SIZE, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+
+                // printf("ITER %d, Local di %d is %d\n", iteration, rank, local);
+                MPI_Reduce(&local, &res, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
 
                 if (rank == 0)
                 {
@@ -304,7 +324,16 @@ int main(int argc, char **argv)
         }
     }
 
-    Utility::outputSolution(*problemData);
+    int final_res = 0;
+    int local = my_countAlive(*problemData, rank, size);
+    printf("ITER %d, Local di %d is %d\n", NUM_SIMULATION_STEPS, rank, local);
+    MPI_Reduce(&local, &final_res, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+
+    if (rank == 0)
+    {
+        std::cout << "Iteration " << NUM_SIMULATION_STEPS << ": " << final_res << " cells alive." << std::endl;
+        std::cout << "DONE" << std::endl;
+    }
 
     delete problemData;
     MPI_Finalize();
