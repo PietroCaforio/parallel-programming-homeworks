@@ -36,9 +36,9 @@ par_res = run_command(par_cmd)
 end = time.time()
 
 if (seq_res != par_res):
-    print(f"FAILED")
     print(seq_res)
     print(par_res)
+    print(f"FAILED")
 else:
     print(f"PASSED")
 
