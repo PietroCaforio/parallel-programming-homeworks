@@ -7,20 +7,22 @@
 
 typedef bool Grid[GRID_SIZE][GRID_SIZE];
 
-class ProblemData {
+class ProblemData
+{
 private:
     bool grid1[GRID_SIZE][GRID_SIZE]{};
     bool grid2[GRID_SIZE][GRID_SIZE]{};
 
 public:
-    bool(*readGrid)[GRID_SIZE][GRID_SIZE] = &grid1;
-    bool(*writeGrid)[GRID_SIZE][GRID_SIZE] = &grid2;
+    bool (*readGrid)[GRID_SIZE][GRID_SIZE] = &grid1;
+    bool (*writeGrid)[GRID_SIZE][GRID_SIZE] = &grid2;
 
-    void swapGrids() {
-        auto* tmp = readGrid;
+    void swapGrids()
+    {
+        auto *tmp = readGrid;
         readGrid = writeGrid;
         writeGrid = tmp;
     }
 };
 
-#endif 
+#endif

@@ -46,15 +46,15 @@ void evolve(ProblemData &problemData, int rank, int size)
     auto &grid = *problemData.readGrid;
     auto &writeGrid = *problemData.writeGrid;
 
-    int flag = ((rank + 1) * workload_rows) - 1;
+    int flag = ((rank + 1) * workload_rows);
 
     if (rank == size - 1)
     {
-        flag += workload_rest;
+        flag += workload_rest - 1;
     }
 
     // For each cell
-    for (int i = 1 + (rank * workload_rows); i < flag; i++)
+    for (int i = rank == 0 ? 1 : rank * workload_rows; i < flag; i++)
     {
         for (int j = 1; j < GRID_SIZE - 1; j++)
         {
@@ -113,36 +113,37 @@ void copy_edges(bool (&grid)[GRID_SIZE][GRID_SIZE], int rank, int size)
     if (rank != size - 1)
     {
         // Copy data to the boundaries
-        for (int i = 1 + (rank * workload_rows); i < ((rank + 1) * workload_rows) - 1; i++)
+        for (int i = rank == 0 ? 1 : rank * workload_rows; i < ((rank + 1) * workload_rows); i++)
         {
             // join rows together
             grid[i][0] = grid[i][GRID_SIZE - 2];
             grid[i][GRID_SIZE - 1] = grid[i][1];
         }
 
+        int david = rank == 0 ? 1 : 0;
         // send top row to previous process
-        MPI_Send(grid + (rank * workload_rows), GRID_SIZE, MPI_CXX_BOOL, prev_proc, 0, MPI_COMM_WORLD);
+        MPI_Send(grid[rank * workload_rows + david], GRID_SIZE, MPI_CXX_BOOL, prev_proc, 0, MPI_COMM_WORLD);
         // printf("PROC %d, sending to %d\n", rank, prev_proc);
 
         // recv on bottom row from next
         // printf("PROC %d, recving to %d\n", rank, next_proc);
-        MPI_Recv(grid - 1 + ((rank + 1) * workload_rows), GRID_SIZE, MPI_CXX_BOOL, next_proc, 0,
+        MPI_Recv(grid[(rank + 1) * workload_rows], GRID_SIZE, MPI_CXX_BOOL, next_proc, 0,
                  MPI_COMM_WORLD, nullptr);
 
         // send bottom row to next process
-        MPI_Send(grid + ((rank + 1) * workload_rows), GRID_SIZE, MPI_CXX_BOOL, next_proc, 0, MPI_COMM_WORLD);
+        MPI_Send(grid[(rank + 1) * workload_rows - 1], GRID_SIZE, MPI_CXX_BOOL, next_proc, 0, MPI_COMM_WORLD);
         // printf("PROC %d, sending to %d\n", rank, next_proc);
 
         // printf("PROC %d, recving to %d\n", rank, prev_proc);
         // recv on top row from previous process
-        MPI_Recv(grid + 1 + (rank * workload_rows), GRID_SIZE, MPI_CXX_BOOL, prev_proc, 0,
+        MPI_Recv(grid[rank * workload_rows + david - 1], GRID_SIZE, MPI_CXX_BOOL, prev_proc, 0,
                  MPI_COMM_WORLD, nullptr);
     }
     else
     {
 
         // Copy data to the boundaries
-        for (int i = 1 + (rank * workload_rows); i < ((rank + 1) * workload_rows + workload_rest) - 1; i++)
+        for (int i = rank * workload_rows; i < ((rank + 1) * workload_rows + workload_rest) - 1; i++)
         {
             // join rows together
             grid[i][0] = grid[i][GRID_SIZE - 2];
@@ -151,19 +152,19 @@ void copy_edges(bool (&grid)[GRID_SIZE][GRID_SIZE], int rank, int size)
 
         // printf("PROC %d, recving to %d\n", rank, next_proc);
         // recv bottom padding row from next
-        MPI_Recv(grid - 1 + ((rank + 1) * workload_rows) + workload_rest, GRID_SIZE, MPI_CXX_BOOL, next_proc, 0, MPI_COMM_WORLD, nullptr);
+        MPI_Recv(grid[(rank + 1) * workload_rows + workload_rest - 1], GRID_SIZE, MPI_CXX_BOOL, next_proc, 0, MPI_COMM_WORLD, nullptr);
 
         // send top row to previous process
-        MPI_Send(grid + (rank * workload_rows), GRID_SIZE, MPI_CXX_BOOL, prev_proc, 0, MPI_COMM_WORLD);
+        MPI_Send(grid[rank * workload_rows], GRID_SIZE, MPI_CXX_BOOL, prev_proc, 0, MPI_COMM_WORLD);
         // printf("PROC %d, sending to %d\n", rank, prev_proc);
 
         // printf("PROC %d, recving to %d\n", rank, prev_proc);
         // recv on top row from previous process
-        MPI_Recv(grid + 1 + (rank * workload_rows), GRID_SIZE, MPI_CXX_BOOL, prev_proc, 0,
+        MPI_Recv(grid[rank * workload_rows - 1], GRID_SIZE, MPI_CXX_BOOL, prev_proc, 0,
                  MPI_COMM_WORLD, nullptr);
 
         // send bottom row to next process
-        MPI_Send(grid + ((rank + 1) * workload_rows) + workload_rest, GRID_SIZE, MPI_CXX_BOOL, next_proc, 0, MPI_COMM_WORLD);
+        MPI_Send(grid[(rank + 1) * workload_rows + workload_rest - 2], GRID_SIZE, MPI_CXX_BOOL, next_proc, 0, MPI_COMM_WORLD);
         // printf("PROC %d, sending to %d\n", rank, next_proc);
     }
 
@@ -250,16 +251,16 @@ int my_countAlive(ProblemData &data, int rank, int size)
     int workload_rows = GRID_SIZE / size;
     int workload_rest = GRID_SIZE % size;
 
-    int flag = ((rank + 1) * workload_rows) - 1;
+    int flag = ((rank + 1) * workload_rows);
 
     if (rank == size - 1)
     {
-        flag += workload_rest;
+        flag += workload_rest - 1;
     }
 
     auto &grid = *data.readGrid;
     int counter = 0;
-    for (int x = 1 + (rank * workload_rows); x < flag; x++)
+    for (int x = rank == 0 ? 1 : rank * workload_rows; x < flag; x++)
     {
         for (int y = 1; y < GRID_SIZE - 1; y++)
         {
@@ -326,7 +327,7 @@ int main(int argc, char **argv)
 
     int final_res = 0;
     int local = my_countAlive(*problemData, rank, size);
-    printf("ITER %d, Local di %d is %d\n", NUM_SIMULATION_STEPS, rank, local);
+    // printf("ITER %d, Local di %d is %d\n", NUM_SIMULATION_STEPS, rank, local);
     MPI_Reduce(&local, &final_res, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
 
     if (rank == 0)
