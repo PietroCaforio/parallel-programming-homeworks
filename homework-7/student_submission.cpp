@@ -11,6 +11,7 @@
 #include <mpi.h>
 #include <iostream>
 #include <random>
+#include <thread>
 #include "Utility.h"
 
 std::minstd_rand my_randomEngine;
@@ -112,6 +113,7 @@ void copy_edges(bool (&grid)[GRID_SIZE][GRID_SIZE], int rank, int size)
 
     if (rank != size - 1)
     {
+        MPI_Request req[4];
         // Copy data to the boundaries
         for (int i = rank == 0 ? 1 : rank * workload_rows; i < ((rank + 1) * workload_rows); i++)
         {
@@ -122,25 +124,28 @@ void copy_edges(bool (&grid)[GRID_SIZE][GRID_SIZE], int rank, int size)
 
         int david = rank == 0 ? 1 : 0;
         // send top row to previous process
-        MPI_Send(grid[rank * workload_rows + david], GRID_SIZE, MPI_CXX_BOOL, prev_proc, 0, MPI_COMM_WORLD);
+        MPI_Isend(grid[rank * workload_rows + david], GRID_SIZE, MPI_CXX_BOOL, prev_proc, 0, MPI_COMM_WORLD, &req[0]);
         // printf("PROC %d, sending to %d\n", rank, prev_proc);
 
         // recv on bottom row from next
         // printf("PROC %d, recving to %d\n", rank, next_proc);
-        MPI_Recv(grid[(rank + 1) * workload_rows], GRID_SIZE, MPI_CXX_BOOL, next_proc, 0,
-                 MPI_COMM_WORLD, nullptr);
+        MPI_Irecv(grid[(rank + 1) * workload_rows], GRID_SIZE, MPI_CXX_BOOL, next_proc, 0,
+                  MPI_COMM_WORLD, &req[1]);
 
         // send bottom row to next process
-        MPI_Send(grid[(rank + 1) * workload_rows - 1], GRID_SIZE, MPI_CXX_BOOL, next_proc, 0, MPI_COMM_WORLD);
+        MPI_Isend(grid[(rank + 1) * workload_rows - 1], GRID_SIZE, MPI_CXX_BOOL, next_proc, 0, MPI_COMM_WORLD, &req[2]);
         // printf("PROC %d, sending to %d\n", rank, next_proc);
 
         // printf("PROC %d, recving to %d\n", rank, prev_proc);
         // recv on top row from previous process
-        MPI_Recv(grid[rank * workload_rows + david - 1], GRID_SIZE, MPI_CXX_BOOL, prev_proc, 0,
-                 MPI_COMM_WORLD, nullptr);
+        MPI_Irecv(grid[rank * workload_rows + david - 1], GRID_SIZE, MPI_CXX_BOOL, prev_proc, 0,
+                  MPI_COMM_WORLD, &req[3]);
+
+        MPI_Waitall(4, req, MPI_STATUS_IGNORE);
     }
     else
     {
+        MPI_Request req[4];
 
         // Copy data to the boundaries
         for (int i = rank * workload_rows; i < ((rank + 1) * workload_rows + workload_rest) - 1; i++)
@@ -152,19 +157,22 @@ void copy_edges(bool (&grid)[GRID_SIZE][GRID_SIZE], int rank, int size)
 
         // printf("PROC %d, recving to %d\n", rank, next_proc);
         // recv bottom padding row from next
-        MPI_Recv(grid[(rank + 1) * workload_rows + workload_rest - 1], GRID_SIZE, MPI_CXX_BOOL, next_proc, 0, MPI_COMM_WORLD, nullptr);
+        MPI_Irecv(grid[(rank + 1) * workload_rows + workload_rest - 1], GRID_SIZE, MPI_CXX_BOOL, next_proc, 0, MPI_COMM_WORLD, &req[0]);
 
         // send top row to previous process
-        MPI_Send(grid[rank * workload_rows], GRID_SIZE, MPI_CXX_BOOL, prev_proc, 0, MPI_COMM_WORLD);
+        MPI_Isend(grid[rank * workload_rows], GRID_SIZE, MPI_CXX_BOOL, prev_proc, 0, MPI_COMM_WORLD, &req[1]);
         // printf("PROC %d, sending to %d\n", rank, prev_proc);
 
         // printf("PROC %d, recving to %d\n", rank, prev_proc);
         // recv on top row from previous process
-        MPI_Recv(grid[rank * workload_rows - 1], GRID_SIZE, MPI_CXX_BOOL, prev_proc, 0,
-                 MPI_COMM_WORLD, nullptr);
+        MPI_Irecv(grid[rank * workload_rows - 1], GRID_SIZE, MPI_CXX_BOOL, prev_proc, 0,
+                  MPI_COMM_WORLD, &req[2]);
 
         // send bottom row to next process
-        MPI_Send(grid[(rank + 1) * workload_rows + workload_rest - 2], GRID_SIZE, MPI_CXX_BOOL, next_proc, 0, MPI_COMM_WORLD);
+        MPI_Isend(grid[(rank + 1) * workload_rows + workload_rest - 2], GRID_SIZE, MPI_CXX_BOOL, next_proc, 0, MPI_COMM_WORLD, &req[3]);
+
+        MPI_Waitall(4, req, MPI_STATUS_IGNORE);
+
         // printf("PROC %d, sending to %d\n", rank, next_proc);
     }
 
@@ -177,23 +185,30 @@ void copy_edges(bool (&grid)[GRID_SIZE][GRID_SIZE], int rank, int size)
     if (rank == 0)
     {
 
-        MPI_Recv(&grid[0][0], GRID_SIZE, MPI_CXX_BOOL, size - 1, 0,
-                 MPI_COMM_WORLD, nullptr);
+        MPI_Request req[4];
 
-        MPI_Send(&grid[1][1], 1, MPI_CXX_BOOL, size - 1, 0, MPI_COMM_WORLD);
-        MPI_Recv(&grid[0][GRID_SIZE - 1], GRID_SIZE, MPI_CXX_BOOL, size - 1, 0,
-                 MPI_COMM_WORLD, nullptr);
-        MPI_Send(&grid[1][GRID_SIZE - 2], 1, MPI_CXX_BOOL, size - 1, 0, MPI_COMM_WORLD);
+        MPI_Irecv(&grid[0][0], GRID_SIZE, MPI_CXX_BOOL, size - 1, 0,
+                  MPI_COMM_WORLD, &req[0]);
+
+        MPI_Isend(&grid[1][1], 1, MPI_CXX_BOOL, size - 1, 0, MPI_COMM_WORLD, &req[1]);
+        MPI_Irecv(&grid[0][GRID_SIZE - 1], GRID_SIZE, MPI_CXX_BOOL, size - 1, 0,
+                  MPI_COMM_WORLD, &req[2]);
+        MPI_Isend(&grid[1][GRID_SIZE - 2], 1, MPI_CXX_BOOL, size - 1, 0, MPI_COMM_WORLD, &req[3]);
+
+        MPI_Waitall(4, req, MPI_STATUS_IGNORE);
     }
     if (rank == size - 1)
     {
-        MPI_Send(&grid[GRID_SIZE - 2][GRID_SIZE - 2], 1, MPI_CXX_BOOL, 0, 0, MPI_COMM_WORLD);
+        MPI_Request req[4];
+        MPI_Isend(&grid[GRID_SIZE - 2][GRID_SIZE - 2], 1, MPI_CXX_BOOL, 0, 0, MPI_COMM_WORLD, &req[0]);
 
-        MPI_Recv(&grid[GRID_SIZE - 1][GRID_SIZE - 1], GRID_SIZE, MPI_CXX_BOOL, 0, 0,
-                 MPI_COMM_WORLD, nullptr);
-        MPI_Send(&grid[GRID_SIZE - 2][1], 1, MPI_CXX_BOOL, 0, 0, MPI_COMM_WORLD);
-        MPI_Recv(&grid[GRID_SIZE - 1][0], GRID_SIZE, MPI_CXX_BOOL, 0, 0,
-                 MPI_COMM_WORLD, nullptr);
+        MPI_Irecv(&grid[GRID_SIZE - 1][GRID_SIZE - 1], GRID_SIZE, MPI_CXX_BOOL, 0, 0,
+                  MPI_COMM_WORLD, &req[1]);
+        MPI_Isend(&grid[GRID_SIZE - 2][1], 1, MPI_CXX_BOOL, 0, 0, MPI_COMM_WORLD, &req[2]);
+        MPI_Irecv(&grid[GRID_SIZE - 1][0], GRID_SIZE, MPI_CXX_BOOL, 0, 0,
+                  MPI_COMM_WORLD, &req[3]);
+
+        MPI_Waitall(4, req, MPI_STATUS_IGNORE);
     }
 
     // // columns padding must be copied anyhow (MESSAGE PASSING)
