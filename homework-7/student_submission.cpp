@@ -18,6 +18,8 @@ std::minstd_rand my_randomEngine;
 uint_fast32_t my_cacheValue;
 uint_fast32_t my_bitMask = 0;
 
+#define CHUNK_SIZE 162
+
 void my_seedGenerator(unsigned long long seed)
 {
     my_randomEngine = std::minstd_rand(seed);
@@ -265,6 +267,22 @@ int my_countAlive(ProblemData &data, int rank, int size)
 
     int workload_rows = GRID_SIZE / size;
     int workload_rest = GRID_SIZE % size;
+
+    if (GRID_SIZE % CHUNK_SIZE != 0)
+    {
+        printf("PORCODIO %d, \n", GRID_SIZE % CHUNK_SIZE);
+    }
+
+    std::thread threads[GRID_SIZE % CHUNK_SIZE];
+    for (int i = 0; i < 10; ++i)
+    {
+        threads[i] = std::thread(printThreadId, i); // Create threads
+    }
+
+    for (auto &th : threads)
+    {
+        th.join(); // Wait for all threads to finish
+    }
 
     int flag = ((rank + 1) * workload_rows);
 
